@@ -64,7 +64,7 @@ public class MinecraftPluginChannelTransport implements SharedPlacementTransport
             // Coalesce local edits while waiting for the server snapshot. This
             // prevents a joining client from overwriting an already shared
             // placement before it has received the authoritative state.
-            this.pendingUpdates.put(id, state.deepCopy());
+            this.pendingUpdates.put(id, state);
             return;
         }
 
@@ -125,6 +125,10 @@ public class MinecraftPluginChannelTransport implements SharedPlacementTransport
 
             if (element != null && element.isJsonObject())
             {
+                // If the server already has this placement, its snapshot wins
+                // over any local state queued during initial connection.
+                this.pendingUpdates.remove(id);
+
                 JsonObject state = element.getAsJsonObject();
                 state.addProperty("id", id);
                 state.addProperty("revision", revision);
