@@ -16,6 +16,8 @@ import litematica.input.MouseScrollHandlerImpl;
 import litematica.network.SchematicSavePacketHandler;
 import litematica.render.infohud.StatusInfoRenderer;
 import litematica.scheduler.ClientTickHandler;
+import litematica.shared.HttpSharedPlacementTransport;
+import litematica.shared.SharedPlacementManager;
 import litematica.util.LitematicaDirectories;
 
 public class InitHandler implements InitializationHandler
@@ -47,11 +49,26 @@ public class InitHandler implements InitializationHandler
 
         HotkeyCallbacks.init();
         StatusInfoRenderer.init();
+        initSharedPlacements();
 
         // This creates the directories if they don't exist yet
         LitematicaDirectories.getAreaSelectionsBaseDirectory();
         LitematicaDirectories.getSchematicsBaseDirectory();
 
         Registry.CLIENT_PACKET_CHANNEL_HANDLER.registerClientChannelHandler(SchematicSavePacketHandler.INSTANCE);
+    }
+
+    protected void initSharedPlacements()
+    {
+        String url = System.getProperty("litematica.shared.url", "").trim();
+
+        if (url.isEmpty())
+        {
+            return;
+        }
+
+        String token = System.getProperty("litematica.shared.token", "").trim();
+        SharedPlacementManager.INSTANCE.setTransport(new HttpSharedPlacementTransport(url, token));
+        Litematica.LOGGER.info("Shared schematic placements enabled via {}", url);
     }
 }
