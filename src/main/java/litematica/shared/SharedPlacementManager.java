@@ -159,8 +159,10 @@ public class SharedPlacementManager
             this.revisions.put(id, 0L);
         }
 
-        long revision = this.revisions.containsKey(id) ? this.revisions.get(id) + 1L : 1L;
-        this.revisions.put(id, revision);
+        // Revisions are assigned by the Minecraft server relay. Outgoing client
+        // states carry the last revision only as metadata; it is replaced by
+        // the authoritative server sequence before another client applies it.
+        long revision = this.revisions.containsKey(id) ? this.revisions.get(id) : 0L;
         return SharedPlacementState.fromPlacement(id, placement, revision);
     }
 
