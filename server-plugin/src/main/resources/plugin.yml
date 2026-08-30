@@ -1,0 +1,5 @@
+name: LitematicaSharedRelay
+version: 1.0.0
+main: com.agfstudios.litematicashared.LitematicaSharedRelayPlugin
+author: AGF Studios
+description: Relays shared Litematica placement state over Minecraft plugin messaging.
