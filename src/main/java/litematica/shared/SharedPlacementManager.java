@@ -1,5 +1,6 @@
 package litematica.shared;
 
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -17,10 +18,12 @@ import litematica.schematic.placement.SchematicPlacementManager;
 public class SharedPlacementManager
 {
     public static final SharedPlacementManager INSTANCE = new SharedPlacementManager();
+    public static final String SHARED_NAME_PREFIX = "[shared] ";
 
     protected final Map<SchematicPlacement, String> idsByPlacement = new HashMap<>();
     protected final Map<String, SchematicPlacement> placementsById = new HashMap<>();
     protected final Map<String, Long> revisions = new HashMap<>();
+    protected final Map<SchematicPlacement, String> lastKnownStates = new HashMap<>();
 
     @Nullable protected SharedPlacementTransport transport;
     protected boolean applyingRemoteState;
@@ -40,7 +43,7 @@ public class SharedPlacementManager
 
         if (id == null)
         {
-            id = UUID.randomUUID().toString();
+            id = createStableId(placement.getName());
             this.idsByPlacement.put(placement, id);
             this.placementsById.put(id, placement);
             this.revisions.put(id, 0L);
@@ -59,6 +62,8 @@ public class SharedPlacementManager
             this.placementsById.remove(id);
             this.revisions.remove(id);
         }
+
+        this.lastKnownStates.remove(placement);
     }
 
     public boolean isShared(SchematicPlacement placement)
@@ -66,18 +71,55 @@ public class SharedPlacementManager
         return this.idsByPlacement.containsKey(placement);
     }
 
+    public void syncLocalChanges()
+    {
+        if (this.transport == null || this.applyingRemoteState)
+        {
+            return;
+        }
+
+        for (SchematicPlacement placement : DataManager.getSchematicPlacementManager().getAllSchematicPlacements())
+        {
+            if (placement.getName().startsWith(SHARED_NAME_PREFIX) == false)
+            {
+                if (this.isShared(placement))
+                {
+                    this.unshare(placement);
+                }
+                continue;
+            }
+
+            if (this.isShared(placement) == false)
+            {
+                this.share(placement);
+                continue;
+            }
+
+            String fingerprint = fingerprint(placement);
+            if (fingerprint.equals(this.lastKnownStates.get(placement)) == false)
+            {
+                this.publish(placement);
+            }
+        }
+    }
+
     public void registerRemotePlacement(String id, SchematicPlacement placement, long revision)
     {
         this.idsByPlacement.put(placement, id);
         this.placementsById.put(id, placement);
         this.revisions.put(id, revision);
+        this.lastKnownStates.put(placement, fingerprint(placement));
     }
 
     public void onPlacementModified(SchematicPlacement placement)
     {
         if (this.applyingRemoteState == false && this.isShared(placement))
         {
-            this.publish(placement);
+            String fingerprint = fingerprint(placement);
+            if (fingerprint.equals(this.lastKnownStates.get(placement)) == false)
+            {
+                this.publish(placement);
+            }
         }
     }
 
@@ -85,6 +127,7 @@ public class SharedPlacementManager
     {
         if (this.transport != null)
         {
+            this.lastKnownStates.put(placement, fingerprint(placement));
             this.transport.publish(this.snapshot(placement).toJson());
         }
     }
@@ -110,7 +153,7 @@ public class SharedPlacementManager
 
         if (id == null)
         {
-            id = UUID.randomUUID().toString();
+            id = createStableId(placement.getName());
             this.idsByPlacement.put(placement, id);
             this.placementsById.put(id, placement);
             this.revisions.put(id, 0L);
@@ -159,11 +202,27 @@ public class SharedPlacementManager
             }
 
             manager.setPlacementEnabledState(placement, state.enabled);
+            this.lastKnownStates.put(placement, fingerprint(placement));
             return true;
         }
         finally
         {
             this.applyingRemoteState = false;
         }
+    }
+
+    protected static String fingerprint(SchematicPlacement placement)
+    {
+        BlockPos pos = placement.getPosition();
+        return pos.getX() + ":" + pos.getY() + ":" + pos.getZ() + ":" +
+               placement.getRotation().name() + ":" + placement.getMirror().name() + ":" + placement.isEnabled();
+    }
+
+    protected static String createStableId(String placementName)
+    {
+        String normalized = placementName.startsWith(SHARED_NAME_PREFIX)
+                ? placementName.substring(SHARED_NAME_PREFIX.length()).trim().toLowerCase()
+                : placementName.trim().toLowerCase();
+        return UUID.nameUUIDFromBytes(("litematica-shared:" + normalized).getBytes(StandardCharsets.UTF_8)).toString();
     }
 }
