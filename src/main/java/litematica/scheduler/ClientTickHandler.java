@@ -27,6 +27,7 @@ public class ClientTickHandler implements malilib.event.ClientTickHandler
         if ((this.tickCounter) % 10 == 0)
         {
             SchematicVerifierManager.INSTANCE.scheduleReChecks();
+            SharedPlacementManager.INSTANCE.syncLocalChanges();
         }
 
         if (GuiUtils.noScreenOpen())
